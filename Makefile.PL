@@ -8,6 +8,10 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
     'NAME'	=> 'Time::Duration::sv',
+    'AUTHOR'    => 'Arthur Bergman (arthur at contiller.se)',
+    'PREREQ_PM'   => {
+      'Time::Duration' => '1.02',
+    },
     'VERSION_FROM' => 'sv.pm', # finds $VERSION
     'dist'        => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
 );

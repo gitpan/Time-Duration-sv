@@ -1,7 +1,7 @@
 
 package Time::Duration::sv;
 # Time-stamp: "2002-10-08 01:04:09 MDT"           POD is at the end.
-$VERSION = '1.00';
+$VERSION = '1.01';
 require Exporter;
 @ISA = ('Exporter');
 @EXPORT = qw( later later_exact earlier earlier_exact
@@ -57,7 +57,7 @@ sub duration_exact {
   my $precision = int($_[1] || 0) || 2;  # precision (default: 2)
   return '0 sekunder' unless $span;
   _render('%s',
-          _separate(abs $span));
+          Time::Duration::_separate(abs $span));
 }
 
 sub duration {
@@ -65,8 +65,8 @@ sub duration {
     my $precision = int($_[1] || 0) || 2;  # precision (default: 2)
     return '0 sekunder' unless $span;
   _render('%s',
-          _approximate($precision,
-                       _separate(abs $span)));
+          Time::Duration::_approximate($precision,
+                       Time::Duration::_separate(abs $span)));
 }
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -78,7 +78,7 @@ sub interval_exact {
                 : ($span >=  1) ? $_[3]  # what a pos number gets
                 : return          $_[4]; # what zero gets
   _render($direction,
-          _separate($span));
+          Time::Duration::_separate($span));
 }
 
 sub interval {
@@ -88,111 +88,10 @@ sub interval {
                 : ($span >=  1) ? $_[3]  # what a pos number gets
                 : return          $_[4]; # what zero gets
   _render($direction,
-          _approximate($precision,
-                       _separate($span)));
+          Time::Duration::_approximate($precision,
+                       Time::Duration::_separate($span)));
 }
 
-#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#~#
-#
-# The actual figuring is below here
-
-use constant MINUTE => 60;
-use constant HOUR => 3600;
-use constant DAY  => 24 * HOUR;
-use constant YEAR => 365 * DAY;
-
-sub _separate {
-  # Breakdown of seconds into units, starting with the most significant
-  
-  my $remainder = abs $_[0]; # remainder
-  my $this; # scratch
-  my @wheel; # retval
-  
-  # Years:
-  $this = int($remainder / (365 * 24 * 60 * 60));
-  push @wheel, ['year', $this, 1_000_000_000];
-  $remainder -= $this * (365 * 24 * 60 * 60);
-    
-  # Days:
-  $this = int($remainder / (24 * 60 * 60));
-  push @wheel, ['day', $this, 365];
-  $remainder -= $this * (24 * 60 * 60);
-    
-  # Hours:
-  $this = int($remainder / (60 * 60));
-  push @wheel, ['hour', $this, 24];
-  $remainder -= $this * (60 * 60);
-  
-  # Minutes:
-  $this = int($remainder / 60);
-  push @wheel, ['minute', $this, 60];
-  $remainder -= $this * 60;
-  
-  push @wheel, ['second', int($remainder), 60];
-  return @wheel;
-}
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-sub _approximate {
-  # Now nudge the wheels into an acceptably (im)precise configuration
-  my($precision, @wheel) = @_;
-
- Fix:
-  {
-    # Constraints for leaving this block:
-    #  1) number of nonzero wheels must be <= $precision
-    #  2) no wheels can be improperly expressed (like having "60" for mins)
-  
-    my $nonzero_count = 0;
-    my $improperly_expressed;
-
-    DEBUG and print join ' ', '#', (map "${$_}[1] ${$_}[0]",  @wheel), "\n";
-    for(my $i = 0; $i < @wheel; $i++) {
-      my $this = $wheel[$i];
-      next if $this->[1] == 0; # Zeros require no attention.
-      ++$nonzero_count;
-      next if $i == 0; # the years wheel is never improper or over any limit; skip
-      
-      if($nonzero_count > $precision) {
-        # This is one nonzero wheel too many!
-        DEBUG and print '', $this->[0], " is one nonzero too many!\n";
-
-        # Incr previous wheel if we're big enough:
-        if($this->[1] >= ($this->[-1] / 2)) {
-          DEBUG and printf "incrementing %s from %s to %s\n",
-           $wheel[$i-1][0], $wheel[$i-1][1], 1 + $wheel[$i-1][1], ;
-          ++$wheel[$i-1][1];
-        }
-
-        # Reset this and subsequent wheels to 0:
-        for(my $j = $i; $j < @wheel; $j++) { $wheel[$j][1] = 0 }
-        redo Fix; # Start over.
-      } elsif($this->[1] >= $this->[-1]) {
-        # It's an improperly expressed wheel.  (Like "60" on the mins wheel)
-        $improperly_expressed = $i;
-        DEBUG and print '', $this->[0], ' (', $this->[1], 
-           ") is improper!\n";
-      }
-    }
-    
-    if(defined $improperly_expressed) {
-      # Only fix the least-significant improperly expressed wheel (at a time).
-      DEBUG and printf "incrementing %s from %s to %s\n",
-       $wheel[$improperly_expressed-1][0], $wheel[$improperly_expressed-1][1], 
-        1 + $wheel[$improperly_expressed-1][1], ;
-      ++$wheel[ $improperly_expressed - 1][1];
-      $wheel[ $improperly_expressed][1] = 0;
-      # We never have a "150" in the minutes slot -- if it's improper,
-      #  it's only by having been rounded up to the limit.
-      redo Fix; # Start over.
-    }
-    
-    # Otherwise there's not too many nonzero wheels, and there's no
-    #  improperly expressed wheels, so fall thru...
-  }
-
-  return @wheel;
-}
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 my %env2sv = (
